@@ -26,7 +26,7 @@ struct HarmonicApp {
 impl Default for HarmonicApp {
     fn default() -> Self {
         let string_length = 650.0; // Typical guitar scale length in mm
-        let weights = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+        let weights = [0.15, 1.50, 1.50, 1.50, 0.75, 0.75]; // Harmonics 2-7
         let optimal_position = find_optimal_pickup_position_v2(string_length, &weights);
         
         Self {
