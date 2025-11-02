@@ -1,16 +1,19 @@
 use eframe::egui;
-use egui::{Color32, Pos2, Rect, Stroke, Vec2};
+use egui::{Color32, Pos2, Stroke, Vec2};
+use palette::{Srgb, Oklab, IntoColor, Mix};
 
-fn main() -> eframe::Result {
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1200.0, 800.0]),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "Harmonic Anti-Node Visualizer",
-        options,
-        Box::new(|_cc| Ok(Box::new(HarmonicApp::default()))),
-    )
+/// Extension trait to create Srgb from hex color codes
+trait SrgbExt {
+    fn from_hex(hex: u32) -> Self;
+}
+
+impl SrgbExt for Srgb {
+    fn from_hex(hex: u32) -> Self {
+        let r = ((hex >> 16) & 0xFF) as f32 / 255.0;
+        let g = ((hex >> 8) & 0xFF) as f32 / 255.0;
+        let b = (hex & 0xFF) as f32 / 255.0;
+        Srgb::new(r, g, b)
+    }
 }
 
 struct HarmonicApp {
