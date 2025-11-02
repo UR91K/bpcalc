@@ -113,11 +113,11 @@ impl HarmonicApp {
         // Calculate heat map
         let heat_map = self.calculate_heat_map();
         let max_heat = heat_map.iter().cloned().fold(0.0_f32, f32::max);
-        
+
         // Draw heat map
         let heat_map_y = rect.min.y + 50.0;
         let heat_map_height = 60.0;
-        
+
         for (i, &heat) in heat_map.iter().enumerate() {
             let x = string_start_x + (i as f32 / heat_map.len() as f32) * string_width;
             let normalized_heat = if max_heat > 0.0 { heat / max_heat } else { 0.0 };
@@ -269,31 +269,39 @@ fn get_anti_nodes_for_harmonic(length: f32, harmonic: u8) -> Vec<f32> {
 }
 
 fn find_optimal_pickup_position_v2(length: f32, weights: &[f32; 6]) -> f32 {
-    (0..=1000)
+    // Find the first peak near the bridge (first 50% of string length from bridge)
+    // Pickups are typically placed between bridge and middle of string
+    let search_limit = (length * 0.5) as usize;
+
+    (0..=search_limit)
         .map(|i| (i as f32 / 1000.0) * length)
-        .min_by_key(|&pos| {
+        .max_by_key(|&pos| {
             let score: f32 = (2..=7_u8)
                 .zip(weights.iter())
                 .map(|(harmonic, &weight)| {
-                    // Find minimum distance to any anti-node of this harmonic
                     let min_dist = get_anti_nodes_for_harmonic(length, harmonic)
                         .into_iter()
                         .map(|anti_node| (pos - anti_node).abs())
                         .min_by(|a, b| a.partial_cmp(b).unwrap())
                         .unwrap();
-                    min_dist * weight
+
+                    // Use same sine wave falloff as heat map
+                    let wavelength = length / (harmonic as f32 * 2.0);
+                    let normalized_dist = (min_dist / wavelength).min(1.0);
+                    let falloff = (normalized_dist * std::f32::consts::PI / 2.0).cos();
+
+                    weight * falloff
                 })
                 .sum();
-            
+
             (score * 10000.0) as i32
         })
         .unwrap()
 }
 
 fn heat_to_color(normalized_heat: f32) -> Color32 {
-    // Color gradient: Blue (cold) -> Cyan -> Green -> Yellow -> Red (hot)
     let heat = normalized_heat.clamp(0.0, 1.0);
-    
+
     // Viridis color palette (colorblind-friendly)
     // Convert hex colors to Oklab for perceptually uniform interpolation
     let viridis_stops: [(f32, Oklab); 20] = [
