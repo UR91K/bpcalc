@@ -133,18 +133,30 @@ impl HarmonicApp {
         let heat_map_y = rect.min.y + 50.0;
         let heat_map_height = 60.0;
 
+        // Draw the heat map as a series of rectangles that exactly cover the space
+        // Calculate the exact width needed to avoid gaps
+        let heat_map_rect = egui::Rect::from_min_max(
+            Pos2::new(string_start_x, heat_map_y),
+            Pos2::new(string_end_x, heat_map_y + heat_map_height),
+        );
+        
+        // Draw each segment as a rectangle spanning the full width
         for (i, &heat) in heat_map.iter().enumerate() {
-            let x = string_start_x + (i as f32 / heat_map.len() as f32) * string_width;
             let normalized_heat = if max_heat > 0.0 { heat / max_heat } else { 0.0 };
             let color = heat_to_color(normalized_heat);
             
-            painter.line_segment(
-                [
-                    Pos2::new(x, heat_map_y),
-                    Pos2::new(x, heat_map_y + heat_map_height),
-                ],
-                Stroke::new(1.0, color),
+            // Calculate segment boundaries
+            let segment_start = i as f32 / heat_map.len() as f32;
+            let segment_end = (i + 1) as f32 / heat_map.len() as f32;
+            
+            let x_start = (heat_map_rect.left() + segment_start * heat_map_rect.width()).round();
+            let x_end = (heat_map_rect.left() + segment_end * heat_map_rect.width()).round();
+            
+            let segment_rect = egui::Rect::from_min_max(
+                Pos2::new(x_start, heat_map_y),
+                Pos2::new(x_end, heat_map_y + heat_map_height),
             );
+            painter.rect_filled(segment_rect, 0.0, color);
         }
         
         // Draw heat map label
