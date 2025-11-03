@@ -40,19 +40,22 @@ struct HarmonicApp {
     weights: [f32; 6], // Weights for harmonics 2-7
     optimal_positions: OptimalPositions,
     heat_map_resolution: usize,
+    search_limit: usize,
 }
 
 impl Default for HarmonicApp {
     fn default() -> Self {
         let string_length = 650.0; // Typical guitar scale length in mm
         let weights = [0.15, 1.50, 1.50, 1.50, 0.75, 0.75]; // Harmonics 2-7
-        let optimal_positions = find_optimal_pickup_positions(string_length, &weights);
+        let search_limit = (string_length * 0.5) as usize;
+        let optimal_positions = find_optimal_pickup_positions(string_length, &weights, search_limit);
 
         Self {
             string_length,
             weights,
             optimal_positions,
             heat_map_resolution: 1000,
+            search_limit,
         }
     }
 }
@@ -64,12 +67,15 @@ impl eframe::App for HarmonicApp {
             ui.add_space(10.0);
             
             // Controls
-            ui.horizontal(|ui| {
-                ui.label("String Length (mm):");
-                if ui.add(egui::Slider::new(&mut self.string_length, 500.0..=1000.0)).changed() {
-                    self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights);
-                }
-            });
+            ui.label("String Length (mm):");
+            if ui.add(egui::Slider::new(&mut self.string_length, 500.0..=1000.0)).changed() {
+                self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights, self.search_limit);
+            }
+
+            ui.label("Search Limit:");
+            if ui.add(egui::Slider::new(&mut self.search_limit, 1..=(self.string_length / 2.0) as usize)).changed() {
+                self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights, self.search_limit);
+            }
             
             ui.add_space(10.0);
             ui.separator();
@@ -88,7 +94,7 @@ impl eframe::App for HarmonicApp {
             }
             
             if weights_changed {
-                self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights);
+                self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights, self.search_limit);
             }
             
             ui.add_space(20.0);
@@ -333,9 +339,9 @@ struct OptimalPositions {
     neck_position: f32,
 }
 
-fn find_optimal_pickup_positions(length: f32, weights: &[f32; 6]) -> OptimalPositions {
+fn find_optimal_pickup_positions(length: f32, weights: &[f32; 6], search_limit: usize) -> OptimalPositions {
     // Search in the first 50% of string length from bridge (typical pickup placement)
-    let search_limit = (length * 0.5) as usize;
+    // let search_limit = (length * 0.5) as usize; //TODO: make this a slider
     let resolution = 1000;
 
     // Calculate score at each position
