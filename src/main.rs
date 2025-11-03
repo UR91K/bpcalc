@@ -311,46 +311,15 @@ fn find_optimal_pickup_position_v2(length: f32, weights: &[f32; 6]) -> f32 {
 fn heat_to_color(normalized_heat: f32) -> Color32 {
     let heat = normalized_heat.clamp(0.0, 1.0);
 
-    // Viridis color palette (colorblind-friendly)
-    // Convert hex colors to Oklab for perceptually uniform interpolation
-    let viridis_stops: [(f32, Oklab); 20] = [
-        // Purple-violet
-        (0.00, Srgb::from_hex(0x0E0154).into_color()),
-        (0.05, Srgb::from_hex(0x481567).into_color()),
-        (0.10, Srgb::from_hex(0x482677).into_color()),
-        (0.15, Srgb::from_hex(0x453781).into_color()),
-        (0.20, Srgb::from_hex(0x404788).into_color()),
-        // Blue-teal
-        (0.25, Srgb::from_hex(0x39568C).into_color()),
-        (0.30, Srgb::from_hex(0x33638D).into_color()),
-        (0.35, Srgb::from_hex(0x2D708E).into_color()),
-        (0.40, Srgb::from_hex(0x287D8E).into_color()),
-        (0.45, Srgb::from_hex(0x238A8D).into_color()),
-        // Teal-green
-        (0.50, Srgb::from_hex(0x1F968B).into_color()),
-        (0.55, Srgb::from_hex(0x20A387).into_color()),
-        (0.60, Srgb::from_hex(0x29AF7F).into_color()),
-        (0.65, Srgb::from_hex(0x3CBB75).into_color()),
-        (0.70, Srgb::from_hex(0x55C667).into_color()),
-        // Lime-yellow
-        (0.75, Srgb::from_hex(0x73D055).into_color()),
-        (0.80, Srgb::from_hex(0x95D840).into_color()),
-        (0.85, Srgb::from_hex(0xB8DE29).into_color()),
-        (0.90, Srgb::from_hex(0xDCE319).into_color()),
-        (0.95, Srgb::from_hex(0xFDE725).into_color()),
+    // Blue to yellow gradient (colorblind-friendly)
+    // Oklab interpolation provides smooth perceptual transition
+    let viridis_stops: [(f32, Oklab); 2] = [
+        (0.0, Srgb::parse_hex(0x0000FF).into_color()), // Blue
+        (1.0, Srgb::parse_hex(0xFFFF00).into_color()), // Yellow
     ];
 
-    // Find the two color stops to interpolate between using match
-    let (lower_idx, upper_idx, t) = match heat {
-        h if h >= 0.95 => (19, 19, 0.0),
-        h => {
-            let idx = (h * 20.0).floor() as usize;
-            let lower = idx.min(18);
-            let upper = (idx + 1).min(19);
-            let t = (h - viridis_stops[lower].0) / (viridis_stops[upper].0 - viridis_stops[lower].0);
-            (lower, upper, t)
-        }
-    };
+    // Simple linear interpolation between the two colors
+    let (lower_idx, upper_idx, t) = (0, 1, heat);
 
     // Interpolate in Oklab space
     let oklab = viridis_stops[lower_idx].1.mix(viridis_stops[upper_idx].1, t);
