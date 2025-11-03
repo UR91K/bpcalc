@@ -3,16 +3,25 @@ use egui::{Color32, Pos2, Stroke, Vec2};
 use palette::{Srgb, Oklab, IntoColor, Mix};
 
 /// Extension trait to create Srgb from hex color codes
-trait SrgbExt {
-    fn from_hex(hex: u32) -> Self;
+trait ColorExt {
+    fn parse_hex(hex: u32) -> Self;
 }
 
-impl SrgbExt for Srgb {
-    fn from_hex(hex: u32) -> Self {
+impl ColorExt for Srgb {
+    fn parse_hex(hex: u32) -> Self {
         let r = ((hex >> 16) & 0xFF) as f32 / 255.0;
         let g = ((hex >> 8) & 0xFF) as f32 / 255.0;
         let b = (hex & 0xFF) as f32 / 255.0;
         Srgb::new(r, g, b)
+    }
+}
+
+impl ColorExt for Color32 {
+    fn parse_hex(hex: u32) -> Self {
+        let r = ((hex >> 16) & 0xFF) as f32 / 255.0;
+        let g = ((hex >> 8) & 0xFF) as f32 / 255.0;
+        let b = (hex & 0xFF) as f32 / 255.0;
+        Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
     }
 }
 
