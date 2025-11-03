@@ -157,8 +157,8 @@ impl HarmonicApp {
         );
         
         // Draw individual harmonics
-        let mut current_y = heat_map_y + heat_map_height + 40.0;
-        let harmonic_spacing = 45.0;
+        let mut current_y = heat_map_y + heat_map_height + 25.0;
+        let harmonic_spacing = 22.0; // More compact spacing
         
         for harmonic in 2..=7_u8 {
             let weight = self.weights[(harmonic - 2) as usize];
@@ -171,17 +171,17 @@ impl HarmonicApp {
                     Pos2::new(string_start_x, string_y),
                     Pos2::new(string_end_x, string_y),
                 ],
-                Stroke::new(2.0, Color32::GRAY),
+                Stroke::new(1.5, Color32::GRAY)
             );
             
-            // Draw anti-nodes
+            // Draw anti-nodes (all with consistent opacity)
             for anti_node in anti_nodes {
                 let x = string_start_x + (anti_node / self.string_length) * string_width;
-                let alpha = (weight * 255.0).min(255.0) as u8;
-                let color = Color32::from_rgba_premultiplied(255, 100, 100, alpha);
+                // Use consistent opacity for all anti-nodes, regardless of weight
+                let color = Color32::from_rgb(255, 100, 100);
                 
-                painter.circle_filled(Pos2::new(x, string_y), 6.0, color);
-                painter.circle_stroke(Pos2::new(x, string_y), 6.0, Stroke::new(1.0, Color32::WHITE));
+                painter.circle_filled(Pos2::new(x, string_y), 4.0, color);
+                painter.circle_stroke(Pos2::new(x, string_y), 4.0, Stroke::new(1.0, Color32::WHITE));
             }
             
             // Draw label
