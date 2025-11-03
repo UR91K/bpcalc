@@ -63,79 +63,114 @@ impl Default for HarmonicApp {
 impl eframe::App for HarmonicApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Harmonic Anti-Node Visualizer");
-            ui.add_space(10.0);
+            // Calculate visualizer height first (including separator and spacing)
+            let viz_height = self.calculate_visualizer_height() + 30.0; // +30 for separator and spacing
             
-            // Controls
-            ui.label("String Length (mm):");
-            if ui.add(egui::Slider::new(&mut self.string_length, 500.0..=1000.0)).changed() {
-                self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights, self.search_limit);
-            }
-
-            ui.label("Search Limit:");
-            if ui.add(egui::Slider::new(&mut self.search_limit, 1..=(self.string_length / 2.0) as usize)).changed() {
-                self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights, self.search_limit);
-            }
+            let available_height = ui.available_height();
+            let scroll_area_height = available_height - viz_height;
             
-            ui.add_space(10.0);
-            ui.separator();
-            ui.add_space(10.0);
-            
-            // Weight sliders
-            ui.label("Harmonic Weights:");
-            let mut weights_changed = false;
-            for (i, weight) in self.weights.iter_mut().enumerate() {
-                ui.horizontal(|ui| {
-                    ui.label(format!("Harmonic {}:", i + 2));
-                    if ui.add(egui::Slider::new(weight, 0.0..=2.0)).changed() {
-                        weights_changed = true;
+            // Top section: Scrollable controls
+            egui::ScrollArea::vertical()
+                .max_height(scroll_area_height)
+                .show(ui, |ui| {
+                    ui.heading("Harmonic Anti-Node Visualizer");
+                    ui.add_space(10.0);
+                    
+                    // Controls
+                    ui.label("String Length (mm):");
+                    if ui.add(egui::Slider::new(&mut self.string_length, 500.0..=1000.0)).changed() {
+                        self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights, self.search_limit);
                     }
-                });
-            }
-            
-            if weights_changed {
-                self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights, self.search_limit);
-            }
-            
-            ui.add_space(20.0);
-            ui.separator();
-            ui.add_space(10.0);
-            
-            // Results
-            ui.horizontal(|ui| {
-                ui.label("Bridge Pickup:");
-                ui.colored_label(Color32::LIGHT_BLUE, format!("{:.2} mm from bridge", self.optimal_positions.bridge_position));
-                ui.label(format!("({:.1}%)", (self.optimal_positions.bridge_position / self.string_length) * 100.0));
-            });
 
-            ui.horizontal(|ui| {
-                ui.label("Neck Pickup:");
-                ui.colored_label(Color32::LIGHT_BLUE, format!("{:.2} mm from bridge", self.optimal_positions.neck_position));
-                ui.label(format!("({:.1}%)", (self.optimal_positions.neck_position / self.string_length) * 100.0));
+                    ui.label("Search Limit:");
+                    if ui.add(egui::Slider::new(&mut self.search_limit, 1..=(self.string_length / 2.0) as usize)).changed() {
+                        self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights, self.search_limit);
+                    }
+                    
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(10.0);
+                    
+                    // Weight sliders
+                    ui.label("Harmonic Weights:");
+                    let mut weights_changed = false;
+                    for (i, weight) in self.weights.iter_mut().enumerate() {
+                        ui.horizontal(|ui| {
+                            ui.label(format!("Harmonic {}:", i + 2));
+                            if ui.add(egui::Slider::new(weight, 0.0..=2.0)).changed() {
+                                weights_changed = true;
+                            }
+                        });
+                    }
+                    
+                    if weights_changed {
+                        self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights, self.search_limit);
+                    }
+                    
+                    ui.add_space(20.0);
+                    ui.separator();
+                    ui.add_space(10.0);
+                    
+                    // Results
+                    ui.horizontal(|ui| {
+                        ui.label("Bridge Pickup:");
+                        ui.colored_label(Color32::LIGHT_BLUE, format!("{:.2} mm from bridge", self.optimal_positions.bridge_position));
+                        ui.label(format!("({:.1}%)", (self.optimal_positions.bridge_position / self.string_length) * 100.0));
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Neck Pickup:");
+                        ui.colored_label(Color32::LIGHT_BLUE, format!("{:.2} mm from bridge", self.optimal_positions.neck_position));
+                        ui.label(format!("({:.1}%)", (self.optimal_positions.neck_position / self.string_length) * 100.0));
+                    });
+                });
+            
+            // Bottom section: Visualization anchored to bottom
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                self.draw_visualization(ui);
+                ui.separator();
+                ui.add_space(10.0);
             });
-            
-            ui.add_space(20.0);
-            
-            // Visualization
-            self.draw_visualization(ui);
         });
     }
 }
 
 impl HarmonicApp {
+    fn calculate_visualizer_height(&self) -> f32 {
+        // These constants must match the values used in draw_visualization()
+        const TOP_PADDING: f32 = 50.0; // Distance from rect.min.y to heat map
+        const LABEL_HEIGHT: f32 = 10.0; // Space above heat map for label
+        const HEAT_MAP_HEIGHT: f32 = 60.0;
+        const GAP_AFTER_HEAT_MAP: f32 = 25.0;
+        const HARMONIC_SPACING: f32 = 22.0;
+        const NUM_HARMONICS: usize = 6; // Harmonics 2-7
+        const BOTTOM_PADDING: f32 = 10.0; // Space for bridge/nut labels
+        
+        TOP_PADDING - LABEL_HEIGHT + HEAT_MAP_HEIGHT + GAP_AFTER_HEAT_MAP + 
+        (NUM_HARMONICS as f32 * HARMONIC_SPACING) + BOTTOM_PADDING
+    }
+    
     fn draw_visualization(&self, ui: &mut egui::Ui) {
-        let available_width = ui.available_width() - 40.0;
-        let viz_height = 500.0;
+        // Constants - must match calculate_visualizer_height()
+        const SIDE_MARGIN: f32 = 20.0;
+        const TOP_PADDING: f32 = 50.0;
+        const LABEL_HEIGHT: f32 = 10.0;
+        const HEAT_MAP_HEIGHT: f32 = 60.0;
+        const GAP_AFTER_HEAT_MAP: f32 = 25.0;
+        const HARMONIC_SPACING: f32 = 22.0;
+        const BOTTOM_PADDING: f32 = 10.0;
+        
+        let available_width = ui.available_width() - (SIDE_MARGIN * 2.0);
+        let viz_height = self.calculate_visualizer_height();
         
         let (response, painter) = ui.allocate_painter(
-            Vec2::new(available_width, viz_height),
+            Vec2::new(available_width + (SIDE_MARGIN * 2.0), viz_height),
             egui::Sense::hover(),
         );
         
         let rect = response.rect;
-        let margin = 20.0;
-        let string_start_x = rect.min.x + margin;
-        let string_end_x = rect.max.x - margin;
+        let string_start_x = rect.min.x + SIDE_MARGIN;
+        let string_end_x = rect.max.x - SIDE_MARGIN;
         let string_width = string_end_x - string_start_x;
         
         // Draw background
@@ -146,14 +181,13 @@ impl HarmonicApp {
         let max_heat = heat_map.iter().cloned().fold(0.0_f32, f32::max);
 
         // Draw heat map
-        let heat_map_y = rect.min.y + 50.0;
-        let heat_map_height = 60.0;
+        let heat_map_y = rect.min.y + TOP_PADDING;
         
         // Draw the heat map as a series of rectangles that exactly cover the space
         // Calculate the exact width needed to avoid gaps
         let heat_map_rect = egui::Rect::from_min_max(
             Pos2::new(string_start_x, heat_map_y),
-            Pos2::new(string_end_x, heat_map_y + heat_map_height),
+            Pos2::new(string_end_x, heat_map_y + HEAT_MAP_HEIGHT),
         );
         
         // Draw each segment as a rectangle spanning the full width
@@ -170,14 +204,14 @@ impl HarmonicApp {
             
             let segment_rect = egui::Rect::from_min_max(
                 Pos2::new(x_start, heat_map_y),
-                Pos2::new(x_end, heat_map_y + heat_map_height),
+                Pos2::new(x_end, heat_map_y + HEAT_MAP_HEIGHT),
             );
             painter.rect_filled(segment_rect, 0.0, color);
         }
         
         // Draw heat map label
         painter.text(
-            Pos2::new(string_start_x, heat_map_y - 10.0),
+            Pos2::new(string_start_x, heat_map_y - LABEL_HEIGHT),
             egui::Align2::LEFT_BOTTOM,
             "Heat Map (Anti-Node Proximity)",
             egui::FontId::proportional(12.0),
@@ -185,11 +219,9 @@ impl HarmonicApp {
         );
         
         // Draw individual harmonics
-        let mut current_y = heat_map_y + heat_map_height + 25.0;
-        let harmonic_spacing = 22.0; // More compact spacing
+        let mut current_y = heat_map_y + HEAT_MAP_HEIGHT + GAP_AFTER_HEAT_MAP;
         
         for harmonic in 2..=7_u8 {
-            let weight = self.weights[(harmonic - 2) as usize];
             let anti_nodes = get_anti_nodes_for_harmonic(self.string_length, harmonic);
             
             // Draw string line
@@ -230,7 +262,7 @@ impl HarmonicApp {
             //     Color32::from_gray(150),
             // );
             
-            current_y += harmonic_spacing;
+            current_y += HARMONIC_SPACING;
         }
         
 
@@ -242,14 +274,14 @@ impl HarmonicApp {
         painter.line_segment(
             [
                 Pos2::new(bridge_x, heat_map_y),
-                Pos2::new(bridge_x, current_y - harmonic_spacing),
+                Pos2::new(bridge_x, current_y - HARMONIC_SPACING),
             ],
             Stroke::new(2.0, bridge_color),
         );
 
         // Draw bridge pickup label
         painter.text(
-            Pos2::new(bridge_x, heat_map_y - 25.0),
+            Pos2::new(bridge_x, heat_map_y - LABEL_HEIGHT - 15.0),
             egui::Align2::CENTER_BOTTOM,
             "Bridge",
             egui::FontId::proportional(11.0),
@@ -261,14 +293,14 @@ impl HarmonicApp {
         painter.line_segment(
             [
                 Pos2::new(neck_x, heat_map_y),
-                Pos2::new(neck_x, current_y - harmonic_spacing),
+                Pos2::new(neck_x, current_y - HARMONIC_SPACING),
             ],
             Stroke::new(2.0, neck_color),
         );
 
         // Draw neck pickup label
         painter.text(
-            Pos2::new(neck_x, heat_map_y - 25.0),
+            Pos2::new(neck_x, heat_map_y - LABEL_HEIGHT - 15.0),
             egui::Align2::CENTER_BOTTOM,
             "Neck",
             egui::FontId::proportional(11.0),
@@ -277,7 +309,7 @@ impl HarmonicApp {
         
         // Draw bridge and nut labels
         painter.text(
-            Pos2::new(string_start_x, rect.max.y - 10.0),
+            Pos2::new(string_start_x, rect.max.y - BOTTOM_PADDING),
             egui::Align2::CENTER_BOTTOM,
             "Bridge",
             egui::FontId::proportional(12.0),
@@ -285,7 +317,7 @@ impl HarmonicApp {
         );
         
         painter.text(
-            Pos2::new(string_end_x, rect.max.y - 10.0),
+            Pos2::new(string_end_x, rect.max.y - BOTTOM_PADDING),
             egui::Align2::CENTER_BOTTOM,
             "Nut",
             egui::FontId::proportional(12.0),
@@ -490,7 +522,7 @@ fn heat_to_color(normalized_heat: f32, hex_colors: &[i32]) -> Color32 {
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1200.0, 800.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([706.0, 678.0]),
         ..Default::default()
     };
     eframe::run_native(
