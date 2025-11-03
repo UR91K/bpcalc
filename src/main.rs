@@ -2,6 +2,16 @@ use eframe::egui;
 use egui::{Color32, Pos2, Stroke, Vec2};
 use palette::{Srgb, Oklab, IntoColor, Mix};
 
+const HEATMAP_COLORS: [i32; 7] = [
+    0x000000,
+    0x0000FF,
+    0x00FFFF,
+    0x00FF00,
+    0xFFFF00,
+    0xFF0000,
+    0xFFFFFF,
+];
+
 /// Extension trait to create Srgb from hex color codes
 trait ColorExt {
     fn parse_hex(hex: u32) -> Self;
@@ -37,7 +47,7 @@ impl Default for HarmonicApp {
         let string_length = 650.0; // Typical guitar scale length in mm
         let weights = [0.15, 1.50, 1.50, 1.50, 0.75, 0.75]; // Harmonics 2-7
         let optimal_positions = find_optimal_pickup_positions(string_length, &weights);
-        
+
         Self {
             string_length,
             weights,
@@ -132,7 +142,7 @@ impl HarmonicApp {
         // Draw heat map
         let heat_map_y = rect.min.y + 50.0;
         let heat_map_height = 60.0;
-
+        
         // Draw the heat map as a series of rectangles that exactly cover the space
         // Calculate the exact width needed to avoid gaps
         let heat_map_rect = egui::Rect::from_min_max(
@@ -143,7 +153,7 @@ impl HarmonicApp {
         // Draw each segment as a rectangle spanning the full width
         for (i, &heat) in heat_map.iter().enumerate() {
             let normalized_heat = if max_heat > 0.0 { heat / max_heat } else { 0.0 };
-            let color = heat_to_color(normalized_heat);
+            let color = heat_to_color(normalized_heat, &HEATMAP_COLORS);
             
             // Calculate segment boundaries
             let segment_start = i as f32 / heat_map.len() as f32;
@@ -185,7 +195,7 @@ impl HarmonicApp {
                 ],
                 Stroke::new(1.5, Color32::GRAY)
             );
-            
+
             // Draw anti-nodes (all with consistent opacity)
             for anti_node in anti_nodes {
                 let x = string_start_x + (anti_node / self.string_length) * string_width;
@@ -249,7 +259,7 @@ impl HarmonicApp {
             ],
             Stroke::new(2.0, neck_color),
         );
-        
+
         // Draw neck pickup label
         painter.text(
             Pos2::new(neck_x, heat_map_y - 25.0),
@@ -423,21 +433,44 @@ fn find_optimal_pickup_positions(length: f32, weights: &[f32; 6]) -> OptimalPosi
     }
 }
 
-fn heat_to_color(normalized_heat: f32) -> Color32 {
+fn heat_to_color(normalized_heat: f32, hex_colors: &[i32]) -> Color32 {
     let heat = normalized_heat.clamp(0.0, 1.0);
 
-    // Blue to yellow gradient (colorblind-friendly)
-    // Oklab interpolation provides smooth perceptual transition
-    let viridis_stops: [(f32, Oklab); 2] = [
-        (0.0, Srgb::parse_hex(0x0000FF).into_color()), // Blue
-        (1.0, Srgb::parse_hex(0xFFFF00).into_color()), // Yellow
-    ];
+    // Convert hex values to Oklab colors
+    let color_stops: Vec<Oklab> = hex_colors
+        .iter()
+        .map(|&hex| Srgb::parse_hex(hex as u32).into_color())
+        .collect();
 
-    // Simple linear interpolation between the two colors
-    let (lower_idx, upper_idx, t) = (0, 1, heat);
+    let num_stops = color_stops.len();
+    
+    // Handle edge cases
+    if num_stops == 0 {
+        return Color32::BLACK;
+    }
+    if num_stops == 1 {
+        let rgb: Srgb = color_stops[0].into_color();
+        return Color32::from_rgb(
+            (rgb.red * 255.0) as u8,
+            (rgb.green * 255.0) as u8,
+            (rgb.blue * 255.0) as u8,
+        );
+    }
+
+    // Calculate which segment we're in
+    let segment_size = 1.0 / (num_stops - 1) as f32;
+    let segment = (heat / segment_size).floor() as usize;
+    
+    // Clamp to valid range
+    let lower_idx = segment.min(num_stops - 2);
+    let upper_idx = lower_idx + 1;
+    
+    // Calculate interpolation factor within this segment
+    let segment_start = lower_idx as f32 * segment_size;
+    let t = ((heat - segment_start) / segment_size).clamp(0.0, 1.0);
 
     // Interpolate in Oklab space
-    let oklab = viridis_stops[lower_idx].1.mix(viridis_stops[upper_idx].1, t);
+    let oklab = color_stops[lower_idx].mix(color_stops[upper_idx], t);
     
     // Convert back to sRGB
     let rgb: Srgb = oklab.into_color();
