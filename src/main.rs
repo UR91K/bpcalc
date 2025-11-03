@@ -28,7 +28,7 @@ impl ColorExt for Color32 {
 struct HarmonicApp {
     string_length: f32,
     weights: [f32; 6], // Weights for harmonics 2-7
-    optimal_position: f32,
+    optimal_positions: OptimalPositions,
     heat_map_resolution: usize,
 }
 
@@ -36,12 +36,12 @@ impl Default for HarmonicApp {
     fn default() -> Self {
         let string_length = 650.0; // Typical guitar scale length in mm
         let weights = [0.15, 1.50, 1.50, 1.50, 0.75, 0.75]; // Harmonics 2-7
-        let optimal_position = find_optimal_pickup_position_v2(string_length, &weights);
+        let optimal_positions = find_optimal_pickup_positions(string_length, &weights);
         
         Self {
             string_length,
             weights,
-            optimal_position,
+            optimal_positions,
             heat_map_resolution: 1000,
         }
     }
@@ -57,7 +57,7 @@ impl eframe::App for HarmonicApp {
             ui.horizontal(|ui| {
                 ui.label("String Length (mm):");
                 if ui.add(egui::Slider::new(&mut self.string_length, 500.0..=1000.0)).changed() {
-                    self.optimal_position = find_optimal_pickup_position_v2(self.string_length, &self.weights);
+                    self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights);
                 }
             });
             
@@ -78,7 +78,7 @@ impl eframe::App for HarmonicApp {
             }
             
             if weights_changed {
-                self.optimal_position = find_optimal_pickup_position_v2(self.string_length, &self.weights);
+                self.optimal_positions = find_optimal_pickup_positions(self.string_length, &self.weights);
             }
             
             ui.add_space(20.0);
@@ -87,9 +87,15 @@ impl eframe::App for HarmonicApp {
             
             // Results
             ui.horizontal(|ui| {
-                ui.label("Optimal Pickup Position:");
-                ui.colored_label(Color32::GREEN, format!("{:.2} mm from bridge", self.optimal_position));
-                ui.label(format!("({:.1}% of string length)", (self.optimal_position / self.string_length) * 100.0));
+                ui.label("Bridge Pickup:");
+                ui.colored_label(Color32::LIGHT_BLUE, format!("{:.2} mm from bridge", self.optimal_positions.bridge_position));
+                ui.label(format!("({:.1}%)", (self.optimal_positions.bridge_position / self.string_length) * 100.0));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Neck Pickup:");
+                ui.colored_label(Color32::LIGHT_BLUE, format!("{:.2} mm from bridge", self.optimal_positions.neck_position));
+                ui.label(format!("({:.1}%)", (self.optimal_positions.neck_position / self.string_length) * 100.0));
             });
             
             ui.add_space(20.0);
@@ -199,23 +205,46 @@ impl HarmonicApp {
             current_y += harmonic_spacing;
         }
         
-        // Draw optimal position line across all visualizations
-        let optimal_x = string_start_x + (self.optimal_position / self.string_length) * string_width;
+
+        let bridge_color = Color32::parse_hex(0xB57EDC);
+        let neck_color = Color32::parse_hex(0xB266FF);
+
+        // Draw bridge pickup position line
+        let bridge_x = string_start_x + (self.optimal_positions.bridge_position / self.string_length) * string_width;
         painter.line_segment(
             [
-                Pos2::new(optimal_x, heat_map_y),
-                Pos2::new(optimal_x, current_y - harmonic_spacing),
+                Pos2::new(bridge_x, heat_map_y),
+                Pos2::new(bridge_x, current_y - harmonic_spacing),
             ],
-            Stroke::new(2.0, Color32::from_rgb(0, 255, 0)),
+            Stroke::new(2.0, bridge_color),
+        );
+
+        // Draw bridge pickup label
+        painter.text(
+            Pos2::new(bridge_x, heat_map_y - 25.0),
+            egui::Align2::CENTER_BOTTOM,
+            "Bridge",
+            egui::FontId::proportional(11.0),
+            bridge_color,
+        );
+
+        // Draw neck pickup position line
+        let neck_x = string_start_x + (self.optimal_positions.neck_position / self.string_length) * string_width;
+        painter.line_segment(
+            [
+                Pos2::new(neck_x, heat_map_y),
+                Pos2::new(neck_x, current_y - harmonic_spacing),
+            ],
+            Stroke::new(2.0, neck_color),
         );
         
-        // Draw optimal position label
+        // Draw neck pickup label
         painter.text(
-            Pos2::new(optimal_x, heat_map_y - 25.0),
+            Pos2::new(neck_x, heat_map_y - 25.0),
             egui::Align2::CENTER_BOTTOM,
-            "Optimal",
+            "Neck",
             egui::FontId::proportional(11.0),
-            Color32::from_rgb(0, 255, 0),
+            neck_color,
         );
         
         // Draw bridge and nut labels
@@ -277,14 +306,20 @@ fn get_anti_nodes_for_harmonic(length: f32, harmonic: u8) -> Vec<f32> {
         .collect()
 }
 
-fn find_optimal_pickup_position_v2(length: f32, weights: &[f32; 6]) -> f32 {
-    // Find the first peak near the bridge (first 50% of string length from bridge)
-    // Pickups are typically placed between bridge and middle of string
-    let search_limit = (length * 0.5) as usize;
+struct OptimalPositions {
+    bridge_position: f32,
+    neck_position: f32,
+}
 
-    (0..=search_limit)
-        .map(|i| (i as f32 / 1000.0) * length)
-        .max_by_key(|&pos| {
+fn find_optimal_pickup_positions(length: f32, weights: &[f32; 6]) -> OptimalPositions {
+    // Search in the first 50% of string length from bridge (typical pickup placement)
+    let search_limit = (length * 0.5) as usize;
+    let resolution = 1000;
+
+    // Calculate score at each position
+    let scores: Vec<(f32, f32)> = (0..=search_limit)
+        .map(|i| {
+            let pos = (i as f32 / resolution as f32) * length;
             let score: f32 = (2..=7_u8)
                 .zip(weights.iter())
                 .map(|(harmonic, &weight)| {
@@ -303,9 +338,77 @@ fn find_optimal_pickup_position_v2(length: f32, weights: &[f32; 6]) -> f32 {
                 })
                 .sum();
 
-            (score * 10000.0) as i32
+            (pos, score)
         })
-        .unwrap()
+        .collect();
+
+    // Find the first peak (bridge pickup) - global maximum
+    let (bridge_idx, &(bridge_pos, bridge_score)) = scores
+        .iter()
+        .enumerate()
+        .max_by(|(_, (_, a)), (_, (_, b))| a.partial_cmp(b).unwrap())
+        .unwrap();
+
+    // Exclude region around the bridge peak
+    // We need to expand outward from the peak until values stop decreasing
+    // Use a minimum exclusion window as well (e.g., 10% of string length)
+    let min_exclusion_distance = length * 0.1; // Pickups should be at least 10% of length apart
+
+    // Find exclusion range by walking away from peak until score increases again
+    let mut left_bound = bridge_idx;
+    let mut right_bound = bridge_idx;
+
+    // Walk left
+    let mut prev_score = bridge_score;
+    for i in (0..bridge_idx).rev() {
+        let curr_score = scores[i].1;
+        if curr_score > prev_score {
+            // Score started increasing again, stop here
+            break;
+        }
+        if (bridge_pos - scores[i].0).abs() >= min_exclusion_distance {
+            // We've gone far enough to consider this outside the peak region
+            if curr_score < bridge_score * 0.5 {
+                // If we've dropped below 50% of peak, we're definitely clear
+                break;
+            }
+        }
+        left_bound = i;
+        prev_score = curr_score;
+    }
+
+    // Walk right
+    prev_score = bridge_score;
+    for i in (bridge_idx + 1)..scores.len() {
+        let curr_score = scores[i].1;
+        if curr_score > prev_score {
+            // Score started increasing again, stop here
+            break;
+        }
+        if (scores[i].0 - bridge_pos).abs() >= min_exclusion_distance {
+            // We've gone far enough to consider this outside the peak region
+            if curr_score < bridge_score * 0.5 {
+                // If we've dropped below 50% of peak, we're definitely clear
+                break;
+            }
+        }
+        right_bound = i;
+        prev_score = curr_score;
+    }
+
+    // Find the second peak (neck pickup) from the remaining data
+    // Search in regions [0..left_bound] and [right_bound..end]
+    let neck_pos = scores[0..left_bound]
+        .iter()
+        .chain(scores[right_bound..].iter())
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+        .map(|&(pos, _)| pos)
+        .unwrap_or(length * 0.3); // Fallback to 30% if no second peak found
+
+    OptimalPositions {
+        bridge_position: bridge_pos,
+        neck_position: neck_pos,
+    }
 }
 
 fn heat_to_color(normalized_heat: f32) -> Color32 {
