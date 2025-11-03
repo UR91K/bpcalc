@@ -178,29 +178,29 @@ impl HarmonicApp {
             for anti_node in anti_nodes {
                 let x = string_start_x + (anti_node / self.string_length) * string_width;
                 // Use consistent opacity for all anti-nodes, regardless of weight
-                let color = Color32::from_rgb(255, 100, 100);
+                let color = Color32::parse_hex(0xA6CFA1);
                 
                 painter.circle_filled(Pos2::new(x, string_y), 4.0, color);
-                painter.circle_stroke(Pos2::new(x, string_y), 4.0, Stroke::new(1.0, Color32::WHITE));
+                // painter.circle_stroke(Pos2::new(x, string_y), 4.0, Stroke::new(1.0, Color32::WHITE));
             }
             
-            // Draw label
-            painter.text(
-                Pos2::new(string_start_x - 10.0, string_y),
-                egui::Align2::RIGHT_CENTER,
-                format!("H{}", harmonic),
-                egui::FontId::proportional(12.0),
-                Color32::from_gray(200),
-            );
+            // // Draw label (inside the bounds to prevent clipping)
+            // painter.text(
+            //     Pos2::new(string_start_x + 5.0, string_y),
+            //     egui::Align2::LEFT_CENTER,
+            //     format!("H{}", harmonic),
+            //     egui::FontId::proportional(11.0),
+            //     Color32::from_gray(200),
+            // );
             
-            // Draw weight indicator
-            painter.text(
-                Pos2::new(string_end_x + 10.0, string_y),
-                egui::Align2::LEFT_CENTER,
-                format!("w: {:.2}", weight),
-                egui::FontId::proportional(10.0),
-                Color32::from_gray(150),
-            );
+            // // Draw weight indicator (inside the bounds to prevent clipping)
+            // painter.text(
+            //     Pos2::new(string_end_x - 5.0, string_y),
+            //     egui::Align2::RIGHT_CENTER,
+            //     format!("w: {:.2}", weight),
+            //     egui::FontId::proportional(9.0),
+            //     Color32::from_gray(150),
+            // );
             
             current_y += harmonic_spacing;
         }
